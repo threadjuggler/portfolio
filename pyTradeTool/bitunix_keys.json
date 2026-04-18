@@ -5,19 +5,19 @@
   "pairs": [
     {
       "symbol": "BTCUSDT",
-      "side_idx": 1,
+      "side_idx": 0,
       "trade_idx": 0,
-      "slider_pct": 0,
-      "qty": 15.0,
+      "pct": 5.0,
+      "qty": 0.0,
       "sl_pct": 2.0,
-      "leverage": 20
+      "leverage": 5
     },
     {
       "symbol": "ETHUSDT",
       "side_idx": 0,
       "trade_idx": 0,
-      "slider_pct": 0,
-      "qty": 15.0,
+      "pct": 5.0,
+      "qty": 0.0,
       "sl_pct": 2.0,
       "leverage": 5
     },
@@ -25,10 +25,10 @@
       "symbol": "SOLUSDT",
       "side_idx": 0,
       "trade_idx": 0,
-      "slider_pct": 0,
-      "qty": 15.0,
+      "pct": 5.0,
+      "qty": 0.0,
       "sl_pct": 2.0,
-      "leverage": 19
+      "leverage": 5
     }
   ]
 }

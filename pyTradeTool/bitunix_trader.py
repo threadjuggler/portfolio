@@ -81,6 +81,7 @@ class PairRow(QGroupBox):
         self.pct_spin.setDecimals(1)
         self.pct_spin.setSingleStep(1.0)
         self.pct_spin.setSuffix(" %")
+        self.pct_spin.setValue(5.0)
         self.pct_spin.setFixedWidth(80)
         self.pct_spin.setToolTip(f"Percentage of balance for this pair (total capped at {MAX_ALLOC_PCT:.0f}%)")
         self.pct_spin.valueChanged.connect(self._on_pct_changed)
@@ -197,7 +198,7 @@ class PairRow(QGroupBox):
     def apply_settings(self, data: dict):
         self.side_combo.setCurrentIndex(data.get("side_idx", 0))
         self.trade_side_combo.setCurrentIndex(data.get("trade_idx", 0))
-        self.pct_spin.setValue(data.get("pct", data.get("slider_pct", 0)))  # slider_pct for back-compat
+        self.pct_spin.setValue(data.get("pct", data.get("slider_pct", 5.0)))  # slider_pct for back-compat
         self.qty_spin.setValue(data.get("qty", 0.0))
         self.sl_spin.setValue(data.get("sl_pct", 2.0))
         self.lev_spin.setValue(data.get("leverage", 10))
@@ -613,7 +614,7 @@ class BitunixTrader(QMainWindow):
 
         # --- resolve qty ---
         qty_override = row.qty_spin.value()
-        if qty_override > 0:
+        if qty_override > 0.0:
             qty_str = f"{qty_override:.6f}"
         else:
             usdt     = self._get_asset() * row.get_pct()
@@ -738,20 +739,39 @@ class BitunixTrader(QMainWindow):
             self._log(f"Positions fetch failed: {data.get('msg', data)}")
             return
         raw = data.get("data", {})
-        positions = raw.get("list", raw) if isinstance(raw, dict) else raw
-        if not isinstance(positions, list):
+        # API may wrap the list under "list" key or return it directly
+        if isinstance(raw, dict):
+            positions = raw.get("list", raw.get("positionList", []))
+            if not isinstance(positions, list):
+                positions = [raw] if raw else []
+        elif isinstance(raw, list):
+            positions = raw
+        else:
             positions = []
+
+        self._log(f"Positions response: {positions}")  # debug — remove once confirmed working
+
         closed = 0
         for pos in positions:
-            sym        = pos.get("symbol", "")
-            qty        = pos.get("qty", "0")
-            side       = pos.get("side", "LONG")
-            close_side = "SELL" if side == "LONG" else "BUY"
-            self._log(f"Closing {side} {sym} qty={qty} → {close_side} CLOSE MARKET…")
+            sym = pos.get("symbol", "")
+            if not sym:
+                continue
+            # qty: try several common field names
+            qty_val = (
+                pos.get("available")
+                or pos.get("qty")
+                or pos.get("total")
+                or pos.get("size")
+                or "0"
+            )
+            # side: Bitunix may use "LONG"/"SHORT", "BUY"/"SELL", or "long"/"short"
+            side = str(pos.get("side") or pos.get("holdSide") or "LONG").upper()
+            close_side = "SELL" if side in ("LONG", "BUY") else "BUY"
+            self._log(f"Closing {side} {sym} qty={qty_val} → {close_side} CLOSE MARKET…")
             self._spawn(
                 f"close_{sym}_{closed}",
                 self.client.place_order,
-                sym, close_side, "CLOSE", qty, None,
+                sym, close_side, "CLOSE", str(qty_val), None,
                 on_result=lambda _, d, s=sym: self._log(
                     f"[{s}] Close {'OK' if d.get('code')==0 else 'FAILED'}: {d.get('msg','')}"
                 ),
